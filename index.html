@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Usernames Display</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f0f0f0;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+    
+        #pointSystem {
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            width: 400px;
+            margin: 20px;
+        }
+    
+        #enterUsernameSection,
+        #hostControls {
+            padding: 20px;
+            box-sizing: border-box;
+        }
+    
+        #enterUsernameSection input,
+        #hostControls input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            box-sizing: border-box;
+        }
+    
+        #enterUsernameSection button,
+        #hostControls button {
+            width: 100%;
+            padding: 10px;
+            background-color: #4caf50;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+    
+        #usernamesSection {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+        }
+    
+        .username-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid #ccc;
+        }
+    
+        .username {
+            font-size: 16px;
+            font-weight: bold;
+        }
+    
+        .points-bar-container {
+            display: flex;
+            align-items: center;
+        }
+    
+        .points-bar {
+            height: 20px;
+            margin-right: 10px;
+        }
+    
+        .points {
+            font-size: 14px;
+            color: #555;
+        }
+    
+        button {
+            background-color: #3498db;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            padding: 5px 10px;
+            font-size: 14px;
+        }
+    
+        .select-user-checkbox {
+            margin-left: 10px;
+        }
+    </style>
+    
+</head>
+<body>
+
+    <div id="enterUsernameSection">
+        <h2>Enter Your Username:</h2>
+
+        <form id="usernameForm">
+            <label for="username">Username:</label>
+            <input type="text" id="username" required>
+            <button type="button" onclick="addUsername()">Submit</button>
+        </form>
+    </div>
+
+    <div id="usernamesSection">
+        <h2>All Usernames:</h2>
+
+        <div id="usernames" class="usernames"></div>
+
+        <div id="hostControls">
+            <button id="resetButton" onclick="resetData()">Reset Data</button>
+            <button id="selectUserButton" onclick="selectUser()">Select User</button>
+        </div>
+
+        <button id="claimHostButton" onclick="claimHost()">Claim Host</button>
+    </div>
+
+    <script>
+        var users = JSON.parse(localStorage.getItem('users')) || [];
+        var host = { username: "Host", points: 0, isHost: false, password: "yourpassword" };
+    
+        function addUsername() {
+            var usernameInput = document.getElementById('username');
+            var username = usernameInput.value;
+    
+            if (usernameAlreadyExists(username)) {
+                alert('Username already exists. Please choose a different username.');
+                return;
+            }
+    
+            var user = {
+                id: generateUserId(),
+                username: username,
+                points: 0,
+                color: getRandomColor(),
+                isLocked: true // Lock buttons by default
+            };
+    
+            users.push(user);
+    
+            localStorage.setItem('users', JSON.stringify(users));
+    
+            displayUser(user);
+    
+            // Clear the input field
+            usernameInput.value = '';
+    
+            // Hide the enterUsernameSection and show the usernamesSection
+            document.getElementById('enterUsernameSection').style.display = 'none';
+            document.getElementById('usernamesSection').style.display = 'flex';
+        }
+    
+        function displayUser(user) {
+            var usernamesContainer = document.getElementById('usernames');
+            var usernameContainer = document.createElement('div');
+            usernameContainer.className = 'username-container';
+            usernameContainer.setAttribute('data-user-id', user.id); // Set user ID as a data attribute
+    
+            var usernameElement = document.createElement('p');
+            usernameElement.textContent = user.username;
+            usernameElement.className = 'username';
+    
+            var pointsContainer = document.createElement('div');
+            pointsContainer.className = 'points-bar-container';
+    
+            var pointsBar = document.createElement('div');
+            pointsBar.className = 'points-bar';
+            pointsBar.style.width = (Math.max(user.points, 0) * 10) + 'px'; // Adjust the multiplier for visual representation
+            pointsBar.style.backgroundColor = user.color;
+    
+            var plusButton = document.createElement('button');
+            plusButton.textContent = '+';
+            plusButton.onclick = function () {
+                if (!user.isLocked) {
+                    updatePoints(user.id, 1);
+                }
+            };
+            plusButton.disabled = user.isLocked; // Disable button based on user's lock state
+    
+            var minusButton = document.createElement('button');
+            minusButton.textContent = '-';
+            minusButton.onclick = function () {
+                if (!user.isLocked) {
+                    updatePoints(user.id, -1);
+                }
+            };
+            minusButton.disabled = user.isLocked; // Disable button based on user's lock state
+    
+            var pointsElement = document.createElement('span');
+            pointsElement.textContent = 'Points: ' + user.points;
+            pointsElement.className = 'points';
+    
+            var selectCheckbox = document.createElement('input');
+            selectCheckbox.type = 'checkbox';
+            selectCheckbox.id = 'selectUserCheckbox_' + user.id;
+            selectCheckbox.className = 'select-user-checkbox'; // Add a class for easier selection
+            selectCheckbox.checked = !user.isLocked; // Check/uncheck based on user's lock state
+            selectCheckbox.disabled = !isCurrentUserHost(); // Disable checkbox for non-host users
+            selectCheckbox.addEventListener('change', function () {
+                user.isLocked = !this.checked; // Update the user's lock state
+                plusButton.disabled = user.isLocked;
+                minusButton.disabled = user.isLocked;
+            });
+    
+            pointsContainer.appendChild(plusButton);
+            pointsContainer.appendChild(minusButton);
+            pointsContainer.appendChild(pointsBar);
+            usernameContainer.appendChild(usernameElement);
+            usernameContainer.appendChild(pointsContainer);
+            usernameContainer.appendChild(pointsElement);
+            usernameContainer.appendChild(selectCheckbox);
+    
+            usernamesContainer.appendChild(usernameContainer);
+        }
+    
+        function updatePoints(userId, value) {
+            var user = users.find(u => u.id === userId);
+    
+            if (!user) {
+                return; // User not found
+            }
+    
+            user.points += value;
+    
+            // Update the width of the points bar for the specific user
+            var pointsBar = document.querySelector('.username-container[data-user-id="' + userId + '"] .points-bar');
+            pointsBar.style.width = (Math.max(user.points, 0) * 10) + 'px'; // Adjust the multiplier for visual representation
+    
+            // Update the points label for the specific user
+            var pointsElement = document.querySelector('.username-container[data-user-id="' + userId + '"] .points');
+            pointsElement.textContent = 'Points: ' + user.points;
+    
+            // Update user data in local storage
+            localStorage.setItem('users', JSON.stringify(users));
+        }
+    
+        function getRandomColor() {
+            var letters = '0123456789ABCDEF';
+            var color = '#';
+            for (var i = 0; i < 6; i++) {
+                color += letters[Math.floor(Math.random() * 16)];
+            }
+            return color;
+        }
+    
+        function usernameAlreadyExists(username) {
+            return users.some(user => user.username === username);
+        }
+    
+        function generateUserId() {
+            return '_' + Math.random().toString(36).substr(2, 9);
+        }
+    
+        function getCurrentUserId() {
+            // In a real scenario, you would implement a proper way to get the current user's ID.
+            // For simplicity, let's assume it's the first user in the list.
+            return users.length > 0 ? users[0].id : null;
+        }
+    
+        function isCurrentUserHost() {
+            // In a real scenario, you would implement a proper way to determine if the current user is the host.
+            // For simplicity, let's use the host object to identify the host.
+            return host.isHost;
+        }
+    
+        function resetData() {
+            if (isCurrentUserHost()) {
+                localStorage.removeItem('users');
+                location.reload(); // Reload the page to reset all data
+            } else {
+                alert("Only the host can reset the data.");
+            }
+        }
+    
+        function selectUser() {
+            if (isCurrentUserHost()) {
+                // Implement the logic for the host to select a user
+                // For now, let's just alert the selected user
+                var selectedUserIds = [];
+                document.querySelectorAll('.select-user-checkbox:checked').forEach(function (checkbox) {
+                    selectedUserIds.push(checkbox.id.split('_')[1]);
+                });
+    
+                if (selectedUserIds.length > 0) {
+                    alert("Host selected users with IDs: " + selectedUserIds.join(', '));
+                } else {
+                    alert("Please select at least one user.");
+                }
+            } else {
+                alert("Only the host can select a user.");
+            }
+        }
+    
+        function claimHost() {
+            if (!host.isHost) {
+                var password = prompt("Enter the host password:");
+                if (password === host.password) {
+                    host.isHost = true;
+    
+                    // Show the host controls
+                    document.getElementById('hostControls').style.display = 'block';
+    
+                    // Disable the "Claim Host" button after successfully claiming host
+                    document.getElementById('claimHostButton').disabled = true;
+    
+                    // Disable checkboxes for non-host users
+                    document.querySelectorAll('.select-user-checkbox').forEach(function (checkbox) {
+                        checkbox.disabled = false; // Enable checkboxes for the host
+                    });
+                } else {
+                    alert("Incorrect password. Unable to claim host.");
+                }
+            }
+        }
+    
+        // Display existing users on page load
+        users.forEach(displayUser);
+    </script>
+    
+    
+    
+    
+    
+    
+
+</body>
+</html>
