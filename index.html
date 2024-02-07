@@ -22,48 +22,60 @@
 
         const usernames = ["MATTHEW RYAN", "MIHF", "WYBIE", "DAV79", "BLCOP", "LD03", "JFP", "ELF001", "LIN91", "SAHN", "RI13"];
 
-        function displayUser(username, points, index) {
-            const usernamesContainer = document.getElementById('usernames');
-            const usernameContainer = document.createElement('div');
-            usernameContainer.className = 'username-container';
+        function displayUser(username, points, index, isLocked) {
+    const usernamesContainer = document.getElementById('usernames');
+    const usernameContainer = document.createElement('div');
+    usernameContainer.className = 'username-container';
 
-            const usernameElement = document.createElement('p');
-            usernameElement.textContent = username;
-            usernameElement.className = 'username';
+    const usernameElement = document.createElement('p');
+    usernameElement.textContent = username;
+    usernameElement.className = 'username';
 
-            const pointsContainer = document.createElement('div');
-            pointsContainer.className = 'points-bar-container';
+    const pointsContainer = document.createElement('div');
+    pointsContainer.className = 'points-bar-container';
 
-            const pointsBar = document.createElement('div');
-            pointsBar.className = 'points-bar';
-            pointsBar.style.width = (Math.max(points, 0) * 10) + 'px';
-            pointsBar.style.backgroundColor = getRandomColor();
+    const pointsBar = document.createElement('div');
+    pointsBar.className = 'points-bar';
+    pointsBar.style.width = (Math.max(points, 0) * 10) + 'px';
+    pointsBar.style.backgroundColor = getRandomColor();
 
-            const plusButton = document.createElement('button');
-            plusButton.textContent = '+';
-            plusButton.onclick = function () {
-                updatePoints(index, 1);
-            };
+    const plusButton = document.createElement('button');
+    plusButton.textContent = '+';
+    plusButton.className = 'plus-button'; // Add a class for easier selection
+    plusButton.onclick = function () {
+        updatePoints(index, 1);
+    };
+    plusButton.disabled = isLocked; // Disable button based on user's lock status
 
-            const minusButton = document.createElement('button');
-            minusButton.textContent = '-';
-            minusButton.onclick = function () {
-                updatePoints(index, -1);
-            };
+    const minusButton = document.createElement('button');
+    minusButton.textContent = '-';
+    minusButton.className = 'minus-button'; // Add a class for easier selection
+    minusButton.onclick = function () {
+        updatePoints(index, -1);
+    };
+    minusButton.disabled = isLocked;
 
-            const pointsElement = document.createElement('span');
-            pointsElement.textContent = 'Points: ' + points;
-            pointsElement.className = 'points';
+    const pointsElement = document.createElement('span');
+    pointsElement.textContent = 'Points: ' + points;
+    pointsElement.className = 'points';
 
-            pointsContainer.appendChild(plusButton);
-            pointsContainer.appendChild(minusButton);
-            pointsContainer.appendChild(pointsBar);
-            usernameContainer.appendChild(usernameElement);
-            usernameContainer.appendChild(pointsContainer);
-            usernameContainer.appendChild(pointsElement);
+    const lockButton = document.createElement('button');
+    lockButton.textContent = isLocked ? 'Unlock' : 'Lock'; // Set button text based on lock status
+    lockButton.className = 'lock-button'; // Add a class for easier selection
+    lockButton.onclick = function () {
+        toggleUserLock(username);
+    };
 
-            usernamesContainer.appendChild(usernameContainer);
-        }
+    pointsContainer.appendChild(plusButton);
+    pointsContainer.appendChild(minusButton);
+    pointsContainer.appendChild(pointsBar);
+    pointsContainer.appendChild(pointsElement);
+    pointsContainer.appendChild(lockButton);
+    usernameContainer.appendChild(usernameElement);
+    usernameContainer.appendChild(pointsContainer);
+
+    usernamesContainer.appendChild(usernameContainer);
+}
 
         function updatePoints(index, value) {
             const username = usernames[index];
@@ -79,23 +91,7 @@
             pointsBar.style.width = (Math.max(points, 0) * 10) + 'px';
 
             // Update the data in the Firebase Realtime Database
-            database.ref('users/' + username).set({ username: username, points: points });
-        }
-
-        function resetData() {
-            const password = prompt("Enter the password to reset scores:");
-            if (password === "yourpassword") {
-                usernames.forEach((username, index) => {
-                    database.ref('users/' + username).set({ username: username, points: 0 });
-                    // Update the displayed scores on the page after reset
-                    const pointsElement = document.querySelector('.username-container:nth-child(' + (index + 1) + ') .points');
-                    pointsElement.textContent = 'Points: 0';
-                    const pointsBar = document.querySelector('.username-container:nth-child(' + (index + 1) + ') .points-bar');
-                    pointsBar.style.width = '0px';
-                });
-            } else {
-                alert("Incorrect password. Unable to reset scores.");
-            }
+            database.ref('users/' + username).update({ points: points });
         }
 
         function getRandomColor() {
@@ -107,11 +103,52 @@
             return color;
         }
 
+        function toggleUserLock(username) {
+    const userIndex = usernames.indexOf(username);
+    const userContainer = document.querySelector('.username-container:nth-child(' + (userIndex + 1) + ')');
+
+    // Prompt for the shared password
+    const password = prompt("Enter the password to toggle lock/unlock:");
+
+    // Reference to the user's data in the Firebase Realtime Database
+    const userRef = database.ref('users/' + username);
+
+    // Fetch current user data
+    userRef.once('value').then(snapshot => {
+        const userData = snapshot.val();
+
+        console.log('Entered password:', password);
+        console.log('User data from the database:', userData);
+
+        // Shared password for all users
+        const sharedPassword = 'your_shared_password'; // Replace with your actual shared password
+
+        if (password === sharedPassword) {
+            // Toggle the lock status
+            const newLockStatus = !userData.isLocked;
+
+            console.log('New lock status:', newLockStatus);
+
+            // Update the UI based on the new lock status
+            userContainer.querySelector('.plus-button').disabled = newLockStatus;
+            userContainer.querySelector('.minus-button').disabled = newLockStatus;
+            userContainer.querySelector('.lock-button').textContent = newLockStatus ? 'Unlock' : 'Lock';
+
+            // Update the lock status in the database
+            userRef.update({ isLocked: newLockStatus });
+        } else {
+            alert('Incorrect password. Lock/unlock operation canceled.');
+        }
+    });
+}
+
+
+
         // Display existing users on page load
         usernames.forEach((username, index) => {
             database.ref('users/' + username).once('value').then(snapshot => {
-                const points = snapshot.val() ? snapshot.val().points : 0;
-                displayUser(username, points, index);
+                const data = snapshot.val() || { points: 0, isLocked: false };
+                displayUser(username, data.points, index, data.isLocked);
             });
         });
     </script>
@@ -168,6 +205,5 @@
 </head>
 <body>
     <div id="usernames" class="usernames"></div>
-    <button id="resetButton" onclick="resetData()">Reset Scores</button>
 </body>
 </html>
